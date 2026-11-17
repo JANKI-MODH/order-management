@@ -1,0 +1,15 @@
+# Secrets. A real password committed once stays in history.
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output. These are recreated from source.
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs and local OS/editor files.
+*.log
+.DS_Store
+Thumbs.db
