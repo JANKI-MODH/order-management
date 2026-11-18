@@ -9,6 +9,9 @@ dist/
 build/
 coverage/
 
+# Local PostgreSQL files created by npm run db.
+backend/data/
+
 # Logs and local OS/editor files.
 *.log
 .DS_Store

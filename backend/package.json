@@ -1,0 +1,35 @@
+{
+  "name": "northline-backend",
+  "private": true,
+  "scripts": {
+    "db": "node scripts/postgres.mjs",
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.5.1",
+    "@nestjs/core": "^12.5.1",
+    "@nestjs/jwt": "^12.0.5",
+    "@nestjs/platform-express": "^12.5.1",
+    "bcryptjs": "^3.0.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
+    "dotenv": "^18.0.10",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.13",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "embedded-postgres": "^16.15.0-beta.19",
+    "typescript": "^6.0.3"
+  },
+  "allowScripts": {
+    "@embedded-postgres/windows-x64@16.15.0-beta.19": true
+  }
+}
