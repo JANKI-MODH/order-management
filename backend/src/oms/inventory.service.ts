@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { DatabaseService } from "../database/database.service";
 import { isForeignKeyViolation, isUniqueViolation } from "../database/pg-error";
 import { RecordsService } from "./records.service";
@@ -29,6 +29,37 @@ export class InventoryService {
       } catch (error) {
         if (isUniqueViolation(error)) {
           throw new ConflictException("A warehouse with this code already exists");
+        }
+        throw error;
+      }
+    });
+  }
+
+  async renameWarehouse(actorUserId: string, id: string, name: string) {
+    return this.database.withTransaction(async (client) => {
+      const result = await client.query<{ id: string; code: string; name: string }>(
+        "UPDATE warehouses SET name = $2 WHERE id = $1 RETURNING id, code, name",
+        [id, name.trim()],
+      );
+      if (!result.rows[0]) {
+        throw new NotFoundException("Warehouse not found");
+      }
+      await this.records.audit(client, actorUserId, "warehouse.updated", "warehouse", id);
+      return result.rows[0];
+    });
+  }
+
+  async removeWarehouse(actorUserId: string, id: string): Promise<void> {
+    await this.database.withTransaction(async (client) => {
+      try {
+        const result = await client.query("DELETE FROM warehouses WHERE id = $1 RETURNING id", [id]);
+        if (!result.rows[0]) {
+          throw new NotFoundException("Warehouse not found");
+        }
+        await this.records.audit(client, actorUserId, "warehouse.deleted", "warehouse", id);
+      } catch (error) {
+        if (isForeignKeyViolation(error)) {
+          throw new ConflictException("This warehouse still has stock or orders and cannot be deleted");
         }
         throw error;
       }

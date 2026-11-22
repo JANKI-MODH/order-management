@@ -26,12 +26,12 @@ export class PaymentsService {
     return this.apply(actorUserId, orderId, eventId, "succeeded", "test");
   }
 
-  async webhook(actorUserId: string, orderId: string, eventId: string, status: "succeeded" | "failed"): Promise<PaymentView> {
+  async webhook(actorUserId: string | null, orderId: string, eventId: string, status: "succeeded" | "failed"): Promise<PaymentView> {
     return this.apply(actorUserId, orderId, eventId, status, "webhook");
   }
 
   private async apply(
-    actorUserId: string,
+    actorUserId: string | null,
     orderId: string,
     eventId: string,
     status: "succeeded" | "failed",
@@ -49,7 +49,7 @@ export class PaymentsService {
 
   private async applyInTransaction(
     client: PoolClient,
-    actorUserId: string,
+    actorUserId: string | null,
     orderId: string,
     eventId: string,
     status: "succeeded" | "failed",

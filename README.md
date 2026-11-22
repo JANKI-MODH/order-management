@@ -86,7 +86,7 @@ Open http://localhost:5173/account to register or log in. The password must be a
 
 When `BOOTSTRAP_ADMIN=true`, the API promotes `ADMIN_EMAIL` to admin at startup. That switch is for this local project. A customer who calls an admin route receives 403.
 
-http://localhost:5173/catalog shows products to anyone. http://localhost:5173/admin lists people and can add categories and products. Prices are stored as integer cents.
+http://localhost:5173/catalog shows each product and its variants. A signed-in customer can order from the catalogue and review those orders at http://localhost:5173/orders. Staff and admin use http://localhost:5173/operations for stock, customers, orders, payment, shipment, and refunds. Admin uses http://localhost:5173/admin for people, catalogue setup, organizations, and the summary. Prices are stored as integer cents and shown in dollars on the page.
 
 ### Stop
 

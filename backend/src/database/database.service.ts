@@ -21,6 +21,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       user,
       password,
       database,
+      // FIX #10: force UTF-8 client encoding regardless of the server's WIN1252 default
+      // so non-English characters are stored and retrieved correctly.
+      options: "-c client_encoding=UTF8",
     });
   }
 

@@ -44,7 +44,9 @@ export class CatalogService {
     }
   }
 
-  async listProducts(): Promise<Product[]> {
+  async listProducts(q?: string): Promise<Product[]> {
+    const term = q?.trim();
+    const params = term ? [likeTerm(term)] : [];
     const products = await this.database.pool.query<{
       id: string;
       name: string;
@@ -55,7 +57,19 @@ export class CatalogService {
       `SELECT p.id, p.name, p.description, p.category_id, c.name AS category_name
        FROM products p
        JOIN categories c ON c.id = p.category_id
+       ${
+         term
+           ? `WHERE p.name ILIKE $1 ESCAPE '\\'
+              OR p.description ILIKE $1 ESCAPE '\\'
+              OR c.name ILIKE $1 ESCAPE '\\'
+              OR EXISTS (
+                SELECT 1 FROM product_variants v
+                WHERE v.product_id = p.id AND (v.sku ILIKE $1 ESCAPE '\\' OR v.name ILIKE $1 ESCAPE '\\')
+              )`
+           : ""
+       }
        ORDER BY p.name`,
+      params,
     );
     const variants = await this.database.pool.query<{
       id: string;
@@ -123,4 +137,73 @@ export class CatalogService {
       throw error;
     }
   }
+
+  async updateProduct(id: string, input: { name?: string; description?: string }): Promise<Product> {
+    const current = await this.database.pool.query<{ name: string; description: string }>(
+      "SELECT name, description FROM products WHERE id = $1",
+      [id],
+    );
+    if (!current.rows[0]) {
+      throw new NotFoundException("Product not found");
+    }
+    await this.database.pool.query("UPDATE products SET name = $2, description = $3 WHERE id = $1", [
+      id,
+      input.name?.trim() || current.rows[0].name,
+      input.description !== undefined ? input.description.trim() : current.rows[0].description,
+    ]);
+    const products = await this.listProducts();
+    const updated = products.find((product) => product.id === id);
+    if (!updated) {
+      throw new NotFoundException("Product not found");
+    }
+    return updated;
+  }
+
+  async removeProduct(id: string): Promise<void> {
+    try {
+      const result = await this.database.pool.query("DELETE FROM products WHERE id = $1 RETURNING id", [id]);
+      if (!result.rows[0]) {
+        throw new NotFoundException("Product not found");
+      }
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new ConflictException("This product still has variants and cannot be deleted");
+      }
+      throw error;
+    }
+  }
+
+  async updateVariant(variantId: string, input: { name?: string; priceCents?: number }): Promise<Variant> {
+    const current = await this.database.pool.query<{ name: string; price_cents: number }>(
+      "SELECT name, price_cents FROM product_variants WHERE id = $1",
+      [variantId],
+    );
+    if (!current.rows[0]) {
+      throw new NotFoundException("Variant not found");
+    }
+    const result = await this.database.pool.query<{ id: string; sku: string; name: string; price_cents: number }>(
+      "UPDATE product_variants SET name = $2, price_cents = $3 WHERE id = $1 RETURNING id, sku, name, price_cents",
+      [variantId, input.name?.trim() || current.rows[0].name, input.priceCents ?? current.rows[0].price_cents],
+    );
+    const row = result.rows[0];
+    return { id: row.id, sku: row.sku, name: row.name, priceCents: row.price_cents };
+  }
+
+  async removeVariant(variantId: string): Promise<void> {
+    try {
+      const result = await this.database.pool.query("DELETE FROM product_variants WHERE id = $1 RETURNING id", [variantId]);
+      if (!result.rows[0]) {
+        throw new NotFoundException("Variant not found");
+      }
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new ConflictException("This variant is on an order or in stock and cannot be deleted");
+      }
+      throw error;
+    }
+  }
+}
+
+function likeTerm(value: string): string {
+  return `%${value.trim().replace(/[\\%_]/g, "\\$&")}%`;
 }

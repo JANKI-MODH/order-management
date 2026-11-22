@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { PoolClient } from "pg";
 import { DatabaseService } from "../database/database.service";
 import { postgresConstraint } from "../database/pg-error";
@@ -20,6 +20,12 @@ export type OrderView = {
   idempotencyKey: string | null;
   items: OrderItem[];
   totalCents: number;
+  shipment: {
+    id: string;
+    carrier: string;
+    trackingNumber: string;
+    status: string;
+  } | null;
 };
 
 @Injectable()
@@ -29,13 +35,48 @@ export class OrdersService {
     private readonly records: RecordsService,
   ) {}
 
-  async list(): Promise<OrderView[]> {
-    const result = await this.database.pool.query<{ id: string }>("SELECT id FROM orders ORDER BY created_at DESC");
+  async list(filter?: { q?: string; email?: string }): Promise<OrderView[]> {
+    const params: string[] = [];
+    const where: string[] = [];
+    if (filter?.email) {
+      params.push(filter.email.trim().toLowerCase());
+      where.push(`c.email = $${params.length}`);
+    }
+    if (filter?.q?.trim()) {
+      params.push(likeTerm(filter.q));
+      where.push(`(c.name ILIKE $${params.length} ESCAPE '\\' OR o.status ILIKE $${params.length} ESCAPE '\\' OR o.id::text ILIKE $${params.length} ESCAPE '\\')`);
+    }
+    const result = await this.database.pool.query<{ id: string }>(
+      `SELECT o.id
+       FROM orders o
+       JOIN customers c ON c.id = o.customer_id
+       ${where.length > 0 ? `WHERE ${where.join(" AND ")}` : ""}
+       ORDER BY o.created_at DESC
+       LIMIT 100`,
+      params,
+    );
     const orders: OrderView[] = [];
     for (const row of result.rows) {
       orders.push(await this.getById(row.id));
     }
     return orders;
+  }
+
+  async getVisible(id: string, actor: { role: string; email: string }): Promise<OrderView> {
+    const order = await this.getById(id);
+    if (actor.role === "customer") {
+      const owner = await this.database.pool.query<{ email: string }>(
+        `SELECT c.email
+         FROM orders o
+         JOIN customers c ON c.id = o.customer_id
+         WHERE o.id = $1`,
+        [id],
+      );
+      if (owner.rows[0]?.email !== actor.email) {
+        throw new ForbiddenException("You can only open your own orders");
+      }
+    }
+    return order;
   }
 
   async getById(id: string): Promise<OrderView> {
@@ -229,6 +270,11 @@ export class OrdersService {
       quantity: item.quantity,
       unitPriceCents: item.unit_price_cents,
     }));
+    const shipment = await client.query<{ id: string; carrier: string; tracking_number: string; status: string }>(
+      "SELECT id, carrier, tracking_number, status FROM shipments WHERE order_id = $1",
+      [orderId],
+    );
+    const shipmentRow = shipment.rows[0];
     return {
       id: order.rows[0].id,
       customerId: order.rows[0].customer_id,
@@ -237,6 +283,14 @@ export class OrdersService {
       idempotencyKey: order.rows[0].idempotency_key,
       items: mapped,
       totalCents: mapped.reduce((sum, item) => sum + item.quantity * item.unitPriceCents, 0),
+      shipment: shipmentRow
+        ? {
+            id: shipmentRow.id,
+            carrier: shipmentRow.carrier,
+            trackingNumber: shipmentRow.tracking_number,
+            status: shipmentRow.status,
+          }
+        : null,
     };
   }
 }
@@ -244,4 +298,8 @@ export class OrdersService {
 function normalizeKey(value: string | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function likeTerm(value: string): string {
+  return `%${value.trim().replace(/[\\%_]/g, "\\$&")}%`;
 }

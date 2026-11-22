@@ -6,7 +6,7 @@ import { DatabaseService } from "../database/database.service";
 export class RecordsService {
   constructor(private readonly database: DatabaseService) {}
 
-  async audit(client: PoolClient, actorUserId: string, action: string, entityType: string, entityId: string): Promise<void> {
+  async audit(client: PoolClient, actorUserId: string | null, action: string, entityType: string, entityId: string): Promise<void> {
     await client.query(
       `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id)
        VALUES ($1, $2, $3, $4)`,

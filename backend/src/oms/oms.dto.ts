@@ -76,6 +76,15 @@ export class PlaceOrderDto {
   items!: OrderItemDto[];
 }
 
+// FIX #1: customer-facing DTO — no customerId field (resolved from their account)
+export class PlaceMyOrderDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => OrderItemDto)
+  items!: OrderItemDto[];
+}
+
 export class TestPaymentDto {
   @IsUUID()
   orderId!: string;
@@ -131,4 +140,28 @@ export class CreateTeamDto {
 export class AddTeamMemberDto {
   @IsUUID()
   userId!: string;
+}
+
+export class UpdateCustomerDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string;
+}
+
+export class UpdateWarehouseDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
 }

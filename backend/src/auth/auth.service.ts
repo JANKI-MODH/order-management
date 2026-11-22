@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
+import { DatabaseService } from "../database/database.service";
 import { PublicUser, UsersRepository } from "./users.repository";
 
 type AuthResponse = {
@@ -13,6 +14,7 @@ export class AuthService {
   constructor(
     private readonly users: UsersRepository,
     private readonly jwt: JwtService,
+    private readonly database: DatabaseService,
   ) {}
 
   async register(email: string, password: string): Promise<AuthResponse> {
@@ -21,6 +23,7 @@ export class AuthService {
 
     try {
       const user = await this.users.insert(normalizedEmail, passwordHash);
+      await this.ensureCustomer(normalizedEmail);
       return { accessToken: await this.sign(user), user };
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -43,10 +46,20 @@ export class AuthService {
     }
 
     const publicUser = { id: user.id, email: user.email, role: user.role };
+    if (publicUser.role === "customer") {
+      await this.ensureCustomer(publicUser.email);
+    }
     return {
       accessToken: await this.sign(publicUser),
       user: publicUser,
     };
+  }
+
+  private async ensureCustomer(email: string): Promise<void> {
+    await this.database.pool.query(
+      "INSERT INTO customers (name, email) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
+      [email, email],
+    );
   }
 
   private sign(user: PublicUser): Promise<string> {

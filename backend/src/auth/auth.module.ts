@@ -14,7 +14,8 @@ import { UsersRepository } from "./users.repository";
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET,
-        signOptions: { expiresIn: "1h" },
+        // FIX #11: extend session to 8 hours for usability
+        signOptions: { expiresIn: "8h" },
       }),
     }),
   ],
